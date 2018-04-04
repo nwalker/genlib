@@ -7,6 +7,7 @@
 -export([exponential/3]).
 -export([exponential/4]).
 -export([intervals/1]).
+-export([new/1]).
 
 -export([timecap/2]).
 
@@ -21,6 +22,27 @@
     | {exponential, Retries::retries_num(), Factor::number(), Timeout::pos_integer(), MaxTimeout::timeout()}
     | {array      , Array::list(pos_integer())}
     | finish.
+
+-type strategy_as_params() :: #{
+    strategy_name() => strategy_params(),
+    timecap         => infinity | pos_integer()
+}.
+-type strategy_name()   :: linear | exponential | intervals.
+-type strategy_params() :: linear_params() | exponential_params() | intervals_params().
+
+-type linear_params() :: #{
+    retries => retries_num() | {max_total_timeout, pos_integer()},
+    timeout => pos_integer()
+}.
+
+-type exponential_params() :: #{
+    retries     => retries_num() | {max_total_timeout, pos_integer()},
+    factor      => number(),
+    timeout     => pos_integer(),
+    max_timeout => timeout()
+}.
+
+-type intervals_params() :: [pos_integer()].
 
 %%
 
@@ -72,6 +94,12 @@ exponential(Retries = {max_total_timeout, MaxTotalTimeout}, Factor, Timeout, Max
 intervals(Array = [Timeout | _]) when ?is_posint(Timeout) ->
     {array, Array}.
 
+-spec new(strategy_as_params()) -> strategy().
+
+new(Params) ->
+    MaxTimeToSpend = maps:get(timecap, Params, infinity),
+    timecap(MaxTimeToSpend, new_(Params)).
+
 -spec timecap(MaxTimeToSpend :: timeout(), strategy()) -> strategy().
 
 timecap(infinity, Strategy) ->
@@ -83,6 +111,21 @@ timecap(_, _Strategy) ->
     finish.
 
 %%
+
+-spec new_(strategy_as_params()) -> strategy().
+
+new_(#{linear := StrategyParams}) when is_map(StrategyParams) ->
+    Retries = maps:get(retries, StrategyParams, infinity),
+    Timeout = maps:get(timeout, StrategyParams, 1000),
+    linear(Retries, Timeout);
+new_(#{exponential := StrategyParams}) when is_map(StrategyParams) ->
+    Retries    = maps:get(retries,     StrategyParams, infinity),
+    Factor     = maps:get(factor,      StrategyParams, 2),
+    Timeout    = maps:get(timeout,     StrategyParams, 1000),
+    MaxTimeout = maps:get(max_timeout, StrategyParams, infinity),
+    exponential(Retries, Factor, Timeout, MaxTimeout);
+new_(#{intervals := Timeouts}) when is_list(Timeouts) ->
+    intervals(Timeouts).
 
 -spec next_step(strategy()) -> {wait, Timeout::pos_integer(), strategy()} | finish.
 
