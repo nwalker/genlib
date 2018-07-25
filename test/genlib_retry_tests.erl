@@ -43,6 +43,19 @@ timecap_test() ->
     ?assertNear(450, N5, 10),
     ok.
 
+sequence_test() ->
+    R1 = genlib_retry:new(#{
+        sequence => [
+            #{linear => #{retries => 2, timeout => 64}},
+            #{exponential => #{retries => 2, timeout => 64}}
+        ]
+    }),
+    {wait, 64, R2} = genlib_retry:next_step(R1),
+    {wait, 64, R3} = genlib_retry:next_step(R2),
+    {wait, 64, R4} = genlib_retry:next_step(R3),
+    {wait, 128, R5} = genlib_retry:next_step(R4),
+    finish = genlib_retry:next_step(R5).
+
 linear_compute_retries_test() ->
     Fixture = [
         {{max_total_timeout, 1909}, 10},

@@ -21,6 +21,7 @@
       {linear     , Retries::retries_num(), Timeout::pos_integer()}
     | {exponential, Retries::retries_num(), Factor::number(), Timeout::pos_integer(), MaxTimeout::timeout()}
     | {array      , Array::list(pos_integer())}
+    | {sequence, List::list(strategy())}
     | finish.
 
 -type strategy_as_params() :: #{
@@ -94,6 +95,11 @@ exponential(Retries = {max_total_timeout, MaxTotalTimeout}, Factor, Timeout, Max
 intervals(Array = [Timeout | _]) when ?is_posint(Timeout) ->
     {array, Array}.
 
+-spec sequence([strategy()]) -> strategy().
+
+sequence(List = [_Strategy | _]) ->
+    {sequence, List}.
+
 -spec new(strategy_as_params()) -> strategy().
 
 new(Params) ->
@@ -114,6 +120,8 @@ timecap(_, _Strategy) ->
 
 -spec new_(strategy_as_params()) -> strategy().
 
+new_(#{sequence := Strategies}) when is_list(Strategies) ->
+    sequence(lists:map(fun new_/1, Strategies));
 new_(#{linear := StrategyParams}) when is_map(StrategyParams) ->
     Retries = maps:get(retries, StrategyParams, infinity),
     Timeout = maps:get(timeout, StrategyParams, 1000),
@@ -144,6 +152,16 @@ next_step({array, []}) ->
     finish;
 next_step({array, [Timeout|Remain]}) ->
     {wait, Timeout, {array, Remain}};
+
+next_step({sequence, []}) ->
+    finish;
+next_step({sequence, [Strategy | Rest]}) ->
+    case next_step(Strategy) of
+        {wait, Timeout, NextStrategy} ->
+            {wait, Timeout, {sequence, [NextStrategy | Rest]}};
+        finish ->
+            next_step({sequence, Rest})
+    end;
 
 next_step({timecap, Last, Deadline, Strategy}) ->
     Now = now_ms(),
