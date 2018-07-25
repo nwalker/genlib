@@ -56,6 +56,16 @@ sequence_test() ->
     {wait, 128, R5} = genlib_retry:next_step(R4),
     finish = genlib_retry:next_step(R5).
 
+all_steps_test() ->
+    R = genlib_retry:new(#{
+        sequence => [
+            #{linear => #{retries => 2, timeout => 64}},
+            #{exponential => #{retries => 2, timeout => 64}},
+            #{intervals => [1, 2, 3]}
+        ]
+    }),
+    [64, 64, 64, 128, 1, 2, 3] = genlib_retry:all_steps(R).
+
 linear_compute_retries_test() ->
     Fixture = [
         {{max_total_timeout, 1909}, 10},

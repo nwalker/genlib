@@ -11,7 +11,7 @@
 
 -export([timecap/2]).
 
--export([next_step/1]).
+-export([next_step/1, all_steps/1]).
 
 -export_type([strategy/0]).
 
@@ -182,6 +182,26 @@ next_step(finish) ->
 
 next_step(Strategy) ->
     error(badarg, [Strategy]).
+
+
+-spec all_steps(strategy()) -> Timeouts::[pos_integer()].
+
+all_steps({timecap, _, _, _}) ->
+    % all_steps can't work with non-pure next_step
+    throw(badarg);
+
+all_steps(Strategy) ->
+    all_steps(Strategy, []).
+
+all_steps(finish, Acc) ->
+    lists:reverse(Acc);
+
+all_steps(Strategy, Acc) ->
+    case next_step(Strategy) of
+        {wait, Timeout, NextStrategy} -> all_steps(NextStrategy, [Timeout | Acc]);
+        finish -> all_steps(finish, Acc)
+    end.
+
 
 -spec compute_retries
     (
